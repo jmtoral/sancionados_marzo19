@@ -26,6 +26,7 @@ servidores <- read_csv("/home/manuel/Documents/Proyectos/sancionados/ServPubSanc
 # Algunas consideraciones
 
 - La base está disponible en el repositorio de datos abiertos del Gobierno Federal en [esta](https://datos.gob.mx/busca/dataset/servidores-publicos-sancionados/resource/b7187df3-c407-45d9-8913-e517cd8211c2) liga.
+- NOTA AGREGADA el 2022-12-22: A raíz de una polémica en twitter, este código no fue actualizado, pero hay que mencionar que el enlace de la base ya no sirve, el correcto es el siguiente: https://datos.gob.mx/busca/dataset/servidores-publicos-sancionados/resource/13ef30e7-009d-4720-adff-99338411bf1b
 - La variable "montos", que debería indicar el monto de multa es 0, con excepción de unos números inexplicables en la base. 
 
 # Descriptivos
