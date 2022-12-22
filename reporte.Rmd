@@ -1,0 +1,360 @@
+---
+title: "Untitled"
+author: "Manuel Toral"
+date: "March 7, 2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(readr)
+library(hrbrthemes)
+library(ggridges)
+```
+
+
+```{r}
+servidores <- read_csv("/home/manuel/Documents/Proyectos/sancionados/ServPubSancionados.csv", locale = locale(encoding = "LATIN1"))
+```
+
+# Algunas consideraciones
+
+- La base está disponible en el repositorio de datos abiertos del Gobierno Federal en [esta](https://datos.gob.mx/busca/dataset/servidores-publicos-sancionados/resource/b7187df3-c407-45d9-8913-e517cd8211c2) liga.
+- La variable "montos", que debería indicar el monto de multa es 0, con excepción de unos números inexplicables en la base. 
+
+# Descriptivos
+
+## Servidores por dependencia
+
+
+
+
+
+```{r, eval=FALSE}
+servidores %>% 
+  count(Dependencia) %>% 
+  arrange(-n) %>% 
+  knitr::kable()
+```
+
+
+```{r}
+
+pal <- wesanderson::wes_palette("Zissou1", 4, "continuous")
+
+servidores %>% 
+  count(Dependencia) %>% 
+  arrange(-n) %>% 
+  head(10) %>% 
+  ggplot(aes(x=reorder(Dependencia, n), y=n,
+             label=n, fill=n)) +
+  geom_col() +
+  labs(title = "15 dependencias con mayor número",
+       subtitle="de personas servidoras públicas sancionadas o inhabilitadas",
+       x="Dependencia", y="Número",
+       caption = "Elaboración propia con datos de SFP.") +
+  theme_minimal() +
+  coord_flip()+
+  scale_fill_gradientn("Número",colors=pal)+
+  # theme(axis.text.x = element_text(angle=45, hjust=1)) 
+  geom_text(hjust=-0.1)
+
+ggsave("dependencia.png", height=8, width=14)
+  
+```
+
+
+##Servidores por causas
+
+```{r, eval=FALSE}
+servidores %>% 
+  count(Causa) %>% 
+  arrange(-n) %>% 
+  filter(!grepl("[1-9]", Causa)) %>% 
+  knitr::kable()
+```
+
+
+
+```{r}
+pal <- wesanderson::wes_palette("Zissou1", 4, "continuous")
+  
+servidores %>% 
+  count(Causa) %>% 
+  arrange(-n) %>% 
+  mutate(prop = n/sum(n)) %>% 
+  filter(!grepl("[1-9]", Causa)) %>% 
+  ggplot(aes(x=reorder(Causa, n), y=n, fill=n,
+             label=n)) +
+  geom_col() +
+  labs(title = "Causas con mayor número",
+       subtitle="de personas servidoras públicas sancionadas o inhabilitadas",
+       x="Dependencia", y="Número",
+       caption = "Elaboración propia con datos de SFP.")  +
+  theme_minimal() +
+  coord_flip() +
+  scale_fill_gradientn("Número",colors=pal)+
+ # theme(axis.text.x = element_text(angle=45, hjust=1)) 
+geom_text(hjust=-0.1)
+ggsave("causas.png", height=8, width=14)
+```
+
+## Por año
+
+```{r, eval=FALSE}
+servidores %>% 
+  separate(`Fecha de Resolución`, c("Yr","mes","dia"), sep="-") %>% 
+  count(Yr)  %>% 
+  knitr::kable()
+```
+
+
+```{r}
+servidores %>% 
+  separate(`Fecha de Resolución`, c("Yr","mes","dia"), sep="-") %>% 
+  count(Yr) %>% 
+  mutate(var = as.numeric(Yr>=2018))-> y
+
+  ggplot(y, aes(x=Yr , y=n, group=1,
+             label=n)) +
+  geom_line(aes(color=as.factor(var))) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title = "Personas servidoras públicas sancionadas",
+       subtitle="por fecha de resolución",
+       x="Dependencia", y="Número",
+       caption = "Elaboración propia con datos de SFP.")  +
+  theme_minimal() +
+  scale_color_manual(guide=FALSE, values=c("black", "white", "black")) +
+  geom_segment(aes(x = "2018", y = 1078, xend = "2019", yend = 71), linetype="dashed")+
+  geom_text(vjust=-1) +
+  ylim(0,1300)
+
+ggsave("linea.png", width=6, height = 4)
+  
+```
+
+
+
+
+## Tiempo de sanciones
+
+Medidas en días
+
+```{r}
+servidores %>% 
+  mutate(Inicio = as.Date(Inicio, "%Y-%m-%d")) %>% 
+  mutate(Fin = as.Date(Fin, "%Y-%m-%d")) %>% 
+  mutate(tiempo = Fin - Inicio) %>% 
+  mutate(tiempo= as.numeric(tiempo)) -> x
+
+pander::pander(summary(x$tiempo))
+```
+
+
+```{r}
+x %>% 
+  ggplot(aes(tiempo/360)) +
+  geom_histogram()  +
+  labs(title = "Tiempos de las sanciones",
+       x="Años", y="Número",
+       caption = "Elaboración propia con datos de SFP.")  +
+  theme_minimal()
+
+res <- hist(x$tiempo/360)
+  
+ggsave("histo.png", width=6, height = 4)
+```
+
+```{r}
+x %>% 
+  ggplot(aes(tiempo)) +
+  geom_density()  +
+  labs(title = "Tiempos de las sanciones",
+       subtitle="por día",
+       x="Días", y="Densidad",
+       caption = "Elaboración propia con datos de SFP.")  +
+  theme_minimal()
+  
+```
+
+
+
+# Algunos cruces entre variables
+
+## Dependencias más "severas"
+
+```{r, eval=FALSE}
+x %>% 
+  group_by(Dependencia) %>% 
+  summarise(`average (days)` = mean(tiempo, na.rm = TRUE)/365,
+            `median (days)` = median(tiempo, na.rm = TRUE)/365) %>% 
+  arrange(-`median (days)`) %>% 
+  pander::pander()
+
+```
+
+```{r, fig.height=20, fig.width=10}
+
+pal <- wesanderson::wes_palette("Zissou1", 4, "continuous")
+
+x %>% 
+  group_by(Dependencia) %>% 
+  summarise(`average (days)` = mean(tiempo, na.rm = TRUE),
+            `median (days)` = median(tiempo, na.rm = TRUE)) %>% 
+  arrange(-`median (days)`) %>% 
+  head(35) %>%
+  ungroup %>% 
+  distinct(Dependencia) -> top15d
+  
+  
+x %>% 
+  inner_join(top15d) %>% 
+  group_by(Dependencia) %>%
+  mutate(n = n(),
+         `median (days)` = median(tiempo, na.rm = TRUE)) %>% 
+  filter(n > 2) %>% 
+  ggplot(aes(x=tiempo/365, y=reorder(Dependencia, `median (days)`),
+             fill=`median (days)`)) +
+  geom_density_ridges() +
+  guides(fill=FALSE) +
+  scale_fill_gradientn("Número",colors=pal) +
+  labs(title="Distribuciones de duración de sanciones",
+       subtitle = "de 2013 a 2019, por dependencia",
+       x="Años", y="Dependencia", 
+       caption = "Elaboración propia con datos de SFP.\nSe seleccionaron las dependencias con la mayor media de años y con más de 2 personas sancionadas") +
+  theme_ipsum()
+
+ggsave("ridges.png", width=12, height = 8)
+```
+
+
+
+## Dependencias y causas
+
+```{r}
+x %>% 
+  group_by(Dependencia) %>% 
+  mutate(n = n()) %>% 
+  ungroup %>% 
+  group_by(Dependencia) %>% 
+  summarise(n = mean(n)) %>% 
+  arrange(-n) %>% 
+  head(15) %>%
+  ungroup %>% 
+  distinct(Dependencia) -> top15num
+
+x %>% 
+  group_by(Dependencia) %>% 
+  mutate(n = n()) %>% 
+  ungroup %>% 
+  group_by(Dependencia) %>% 
+  summarise(n = mean(n)) %>% 
+  arrange(-n) %>% 
+  head(20) %>%
+  ungroup %>% 
+  distinct(Dependencia) -> top20num
+  
+```
+
+```{r}
+top20num %>% 
+  mutate(siglas = recode(Dependencia,
+    "POLICIA FEDERAL" = "PF",
+    "INSTITUTO MEXICANO DEL SEGURO SOCIAL (IMSS)" = "IMSS",
+    "INSTITUTO NACIONAL DE MIGRACION" = "INM",
+    "COMISION FEDERAL DE ELECTRICIDAD" = "CFE",
+    "SECRETARIA DE EDUCACION PUBLICA" = "SEP",
+    "TELECOMUNICACIONES DE MEXICO (TELECOMM)" = "TELECOMM",
+    "DICONSA. S.A. DE C.V" = "DICONSA",
+    "ADMINISTRACION FEDERAL DE SERVICIOS EDUCATIVOS EN EL DISTRITO FEDERAL" = "AFSEDF",
+    "INSTITUTO DE SEGURIDAD Y SERVICIOS SOCIALES DE LOS TRABAJADO" = "ISSSTE",
+    "FIDEICOMISO FONDO NACIONAL DE HABITACIONES POPULARES" = "FONHAPO",
+    "SECRETARIA DE MEDIO AMBIENTE Y RECURSOS NATURALES" = "SEMARNAT",
+    "COORDINACION NACIONAL DEL PROGRAMA DE DESARROLLO HUMANO OPORTUNIDADES" = "OPORTUNIDADES",
+    "SERVICIO NACIONAL DE SANIDAD. INOCUIDAD Y CALIDAD AGROALIMENTARIA" = "SENASICA",
+    "BANCO DEL AHORRO NACIONAL Y SERVICIOS FINANCIEROS  S.N.C." = "BANSEFI",
+    "INSTITUTO NACIONAL DE LAS PERSONAS ADULTAS MAYORES" = "INAPAM",
+    "FONDO NACIONAL DE FOMENTO AL TURISMO Y EMPRESAS DE PARTICIPACIÓN ACCIONARIA"= "FOMENTO AL TURISMO",
+    "PROCURADURIA GENERAL DE LA REPUBLICA" = "PGR",
+    "SERVICIO DE ADMINISTRACION TRIBUTARIA" = "SAT")) -> top20num 
+```
+
+
+```{r}
+servidores %>% 
+  group_by(Dependencia, Causa) %>% 
+  summarise(n =n()) %>% 
+  inner_join(top15num) -> causadep 
+
+png("treemap.png", width = 1000, height = 1000)
+treemap::treemap(causadep,
+                 index=c("Dependencia", "Causa"),
+                 vSize = "n",
+                 vColor="Dependencia",
+                 palette="Set1")
+dev.off()
+
+
+servidores %>% 
+  group_by(Dependencia, Causa) %>% 
+  summarise(n =n()) %>% 
+  inner_join(top20num) %>% 
+  filter(!grepl("[1-9]", Causa)) %>%
+  mutate(n = replace_na(n, 0)) %>% 
+  ungroup() %>% 
+  group_by(Dependencia) %>% 
+  mutate(total = sum(n)) %>% 
+  ggplot(aes(x = Causa, y = reorder(siglas,total), 
+             fill = n, label=n)) + 
+  geom_tile() +
+  geom_text()+
+  scale_fill_gradientn("Número de sanciones",
+                       colours = pal) +
+  theme(axis.text.x = element_text(angle=45,
+                                   hjust=1)) +
+  labs(title="Número de violaciones por tipo y por dependencia",
+       subtitle="de las 20 dependencias con más sancionados",
+       x="Causa", y="Dependencia",
+       caption = "Elaboración propia con datos de SFP.")
+
+ggsave("heatmap.png", width = 8, height = 10) 
+```
+
+
+
+
+```{r}
+
+pal <- wesanderson::wes_palette("Zissou1", 4, "continuous")
+  
+servidores %>% 
+  count(Dependencia) %>% 
+  arrange(-n) %>% 
+  head(15) %>% 
+  inner_join(top20num) %>% 
+  ggplot(aes(x=reorder(siglas, n), y=n,
+             label=n, fill=n)) +
+  geom_col() +
+  labs(title = "15 dependencias con mayor número",
+       subtitle="de personas servidoras públicas sancionadas o inhabilitadas",
+       x="Dependencia", y="Número",
+       caption = "Elaboración propia con datos de SFP.") +
+  theme_minimal() +
+  coord_flip()+
+  scale_fill_gradientn("Número",colors=pal)+
+ # theme(axis.text.x = element_text(angle=45, hjust=1)) 
+geom_text(hjust=-0.1)
+
+ggsave("dependencia.png", height=6, width=10)
+  
+```
+
+
+
